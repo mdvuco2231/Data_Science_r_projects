@@ -1,0 +1,133 @@
+---
+title: "NYPD Data Analysis"
+author: "Marc Vucovich"
+date: "2023-04-26"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+```
+
+## Layout
+
+1.  Import Libraries
+2.  Load in Data
+3.  Conduct Initial Analysis
+4.  Break down the data into 2 different plots
+5.  Share insights
+6.  Discuss Biases
+
+## Import Libraries
+
+We will import the necessary libraries to reproduce this analysis.
+
+```{r}
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+```{knitr::opts_chunk$set(echo = TRUE)}
+```
+
+## Load in Data
+
+The NYPD Shooting Incident Historic Data set contains records of the reported shooting incidents in New York City. In the data set, their is information about the time of the shooting, location of the shooting, ages of the people involved, races of the people involved, sexes of the people involved, and whether or not the shooting was fatal.
+
+First, we are goi
+
+ng to read in the NYPD Shooting Incident data set and print out the first 10 rows of the data frame to ensure the data has loaded correctly. Additionally, the printed out data set will allow me to get an understanding of how the data is laid out, what fields it consists of, and which fields I want to focus on.
+
+```{r}
+df <- read_csv("NYPD_Shooting_Incident_Data__Historic_.csv")
+df <- drop_na(df)
+head(df, n = 10)
+```
+
+## Initial Analysis
+
+By looking through the data set, I found quite a few interesting columns that could produce some valuable insights. My first thought was to look at shootings based on precinct number, but after looking deeper into the data set along with an understanding of how New York City is laid out, it becomes clear that precinct number ranges correlate to specific boroughs. This lead to me to want to focus on shootings by boroughs. By doing this, the outputs and visualizations will be easier to interpret since it reduces the total values to be grouped.
+
+Looking at shootings soley grouped by boroughs, however, will not necessarily lead to a lot of insights. Instead, I want to focus on 2 specific features along with the total shootings grouped by boroughs. These additional features are:
+
+-   Age group of the victims
+
+-   Age group of the perpetrator
+
+## Breakdown Data & Share Insights
+
+The first correlation I want to dive into is the correlation between the ages of victims vs the ages of the perpetrators.
+
+In the next block of code, we will produce the plot that will break down the amount of reported victim shot per age group in each borough.
+
+```{r}
+nypd_data <- df
+
+nypd_data <- subset(nypd_data, VIC_AGE_GROUP != "UNKNOWN")
+
+nypd_data <- nypd_data %>%
+    
+    mutate(age_group = VIC_AGE_GROUP)
+
+age_summary <- nypd_data %>%
+    
+    group_by(BORO, age_group) %>%
+    
+    summarize(count = n()) %>%
+    
+    ungroup()
+
+ggplot(age_summary, aes(x = BORO, y = count, fill = age_group)) +
+    
+    geom_bar(stat = "identity", position = "dodge") +
+    
+    labs(x = "Borough", y = "Number of Victims", fill = "Age Group") +
+    
+    ggtitle("Number of Shooting Victims by Age Group and Borough")
+
+```
+
+From this initial graph, we can see Brooklyn has the most reported shootings while Staten Island has the least. It is important to note, however, that the US Census reports that Brooklyn has nearly 2.6 million residents while Staten Island only has about 500,000 residents. Additionally, it is clear the two main age groups involved in shooting incidents are 18-24 and 25-44. Although we can determine the 25-44 age group is the victim of the most shootings in each borough, the breakdown of age groups in the data set does not capture the whole picture. For instance, the number of victims in the 18-24 age group is only slightly below the 25-44 age group, yet it only captures an age rage of 7 years compared to 20 years. If I were able to break down the age groups into smaller buckets, I would break the 25-44 age group into groups of 25-32, 33-40, 41-45. Based on the high number of victims in the 18-24 age range, my hypothesis would be that most of the victims from the 25-32 age range would account for a majority of the victims in the 25-44 bucket. This hypothesis could be backed by the knowledge that people in their 20's tend to go out to bars and stay out later at night which may lead to being in a more dangerous environment, but we need additional breakdowns to confirm the hypothesis.
+
+In the next block of code, we will produce the plot that will break down the amount of caught perpetrators involved in shootings per age group in each borough.
+
+```{r}
+nypd_data <- df
+
+nypd_data <- subset(nypd_data, PERP_AGE_GROUP != "UNKNOWN" & PERP_AGE_GROUP != "224" & PERP_AGE_GROUP != "1020" & PERP_AGE_GROUP != "940" )
+
+nypd_data <- nypd_data %>%
+    
+    mutate(perp_age_group = PERP_AGE_GROUP)
+
+
+
+
+perp_age_summary <- nypd_data %>%
+    
+    group_by(BORO, perp_age_group) %>%
+    
+    summarize(count = n()) %>%
+    
+    ungroup()
+
+ggplot(perp_age_summary, aes(x = BORO, y = count, fill = perp_age_group)) +
+    
+    geom_bar(stat = "identity", position = "dodge") +
+    
+    labs(x = "Borough", y = "Number of Perpetrators", fill = "Age Group") +
+    
+    ggtitle("Number of Shooting Perpetrators by Age Group and Borough")
+
+```
+
+Right away, we can see the distributions between boroughs are very similar in both the victim and perpetrator charts. However, there is one key distinguishing feature between the two. In the perpetrator chart, the age group of 18-24 is the leading contributor to shootings in each of the five boroughs while the 25-44 age group has the most victims. My initial expectation was to see the 25-44 age group to be the leading contributor to shooting as I thought age ranges would correlate to with one another. However after analyzing the data I have drew two out of the many possible conclusions. One possibility is that people in the age group between 18-24 tend to be influenced by outside pressure more than the older age groups leaving them susceptible to poor decisions. Another possibility, is that the the people in the 25-44 age group learned how to avoid getting caught. When we take a closer look at the numbers, we can see the total number of victims does not align with the total number of perpetrators. There are cases of mass shootings, but these numbers seem to show that a good number of perpetrators are not caught.
+
+After this initial analysis, I have a better insight into the demographic of shootings in New York City, and it has helped lead me to think of more avenues to explore for further research. One possible topic would be to breakdown the boruoughs by popularity of night life along with the times of shootings. Another would be to look into repeat offenders to see if there is a decline after a certain age, and one final topic could be to dive into the types of shootings to see if they were planned or accidental.
+
+## Bias
+
+I had quite a few biases going through the data set especially when I broke it down by age. I am personally in the younger age brackets, and I have experienced first hand how people behave in the city late at night. I used my background to help think of possible causes, but I tried to remain neutral on stating what the actual cause was since the data was not thorough enough to draw these conclusion.

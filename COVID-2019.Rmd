@@ -1,0 +1,526 @@
+---
+title: "Covid-19 United States Analysis"
+author: "Marc Vucovich"
+date: "2023-04-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import Libraries
+
+```{r}
+library(tidyverse)
+library(readr)
+library(dplyr)
+library(ggplot2)
+```
+
+## Load in COVID-19 Data and US Census Data
+
+Load the Covid-19 data sets from the URL provided in the code chunk below. Once the data has been loaded, drop the NA's from the data set and output the first 10 rows to ensure the data sets are correct.
+
+```{r}
+url_in <-"https://raw.githubusercontent.com/CSSEGISandData/COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/"
+```
+
+```{r}
+file_names <- c("time_series_covid19_confirmed_US.csv", 
+                "time_series_covid19_confirmed_global.csv", 
+                "time_series_covid19_deaths_US.csv",
+                "time_series_covid19_deaths_global.csv")
+```
+
+```{r}
+urls <- str_c(url_in, file_names)
+urls
+```
+
+```{r}
+us_cases1 <- read_csv(urls[1])
+global_cases1 <- read_csv(urls[2])
+us_deaths1 <- read_csv(urls[3])
+global_deaths1 <- read_csv(urls[4])
+```
+
+```{r}
+us_cases1 <- drop_na(us_cases1)
+head(us_cases1, n=10)
+
+global_cases1 <- drop_na(global_cases1)
+head(global_cases1, n=10)
+
+us_deaths1 <- drop_na(us_deaths1)
+head(us_deaths1, n=10)
+
+global_deaths1 <- drop_na(global_deaths1)
+head(global_deaths1, n=10)
+```
+
+```{r}
+#Read in census population data gathered from the US Census
+
+#IMPORTANT: MAY NEED TO ADJUST PATH
+pop <- read_csv("Downloads/Census.csv")
+```
+
+```{r}
+#Change the Column "State" to match the covid dataset
+pop$Province_State <- pop$State
+```
+
+```{r}
+#Check to make sure the datafram looks correct
+head(pop, n = 5)
+```
+
+## Manipulate COVID-19 and US Census Data Set for Confirmed US Cases
+
+First, we are going to organize the data for our analysis. To do this we will drop the necessary columns and create a pivot table to set the data columns as rows.
+
+```{r}
+#Remove the columns we don't need
+us_cases <- us_cases1 %>%
+  select(-c(UID,iso2,iso3,code3,FIPS,Admin2,Lat, Long_, Combined_Key))
+```
+
+Create a pivot table for the us confirmed cases to align the dates in rows instead of columns.
+
+```{r}
+#Create a pivot to convert the date columns into rows
+us_cases <- us_cases %>%
+  pivot_longer(cols = -c(Province_State, Country_Region),
+               names_to = "date",
+               values_to = "cases") 
+```
+
+Check the first 10 entries of the data set.
+
+```{r}
+head(us_cases, n=10)
+```
+
+Group the confirmed US cases data set by the State and the Year.
+
+```{r}
+#Group the data by the States and the Dates and sum up the total case reported
+us_states <- us_cases %>%
+  mutate(yr = substr(date, nchar(date)-2+1, nchar(date))) %>%
+  group_by(Province_State, yr) %>%
+  summarise(total_cases=sum(cases),
+           mean_cases=(mean(cases)))
+```
+
+Check the data set.
+
+```{r}
+head(us_states, n=5)
+```
+
+Create the data frame of the total confirmed cases by state from the years 2020-2023.
+
+```{r}
+tot_cases_states <- us_states %>%
+  group_by(Province_State) %>%
+  summarise(total_cases=sum(total_cases),
+           mean_cases=(mean(total_cases)))
+tot_cases_states <- merge(tot_cases_states,pop, by="Province_State", all.x=T)
+```
+
+```{r}
+tot_cases_states <- drop_na(tot_cases_states )
+```
+
+```{r}
+head(tot_cases_states, n =5)
+```
+
+Use the census data to get the total cases by state divided by the states population.
+
+```{r}
+#tot_div_pop <- merge(tot_cases_states,pop, by="Province_State", all.x=T)
+tot_div_pop <- transform(tot_cases_states, new = as.numeric(total_cases) / as.numeric(Pop))
+```
+
+```{r}
+head(tot_div_pop, n=5)
+```
+
+Break down the total confirmed US cases by year.
+
+```{r}
+#Breakdown the data by year
+covid_20 <- us_states %>%
+  filter(yr =='20')
+covid_21 <- us_states %>%
+  filter(yr =='21')
+covid_22 <- us_states %>%
+  filter(yr =='22')
+covid_23 <- us_states %>%
+  filter(yr =='23')
+```
+
+Use the census again to get the total cases divided by the population.
+
+```{r}
+#Create a new dataframe that is a combination of the covid and census data
+#2020
+tot_div_pop_20 <- merge(covid_20,pop, by="Province_State", all.x=T)
+tot_div_pop_20 <- transform(tot_div_pop_20, new = as.numeric(total_cases) / as.numeric(Pop))
+
+#2021
+tot_div_pop_21 <- merge(covid_21,pop, by="Province_State", all.x=T)
+tot_div_pop_21 <- transform(tot_div_pop_21, new = as.numeric(total_cases) / as.numeric(Pop))
+#tot_div_pop_21 <- transform(tot_div_pop_21, new = as.integer(total_cases) / as.integer(Pop))
+
+#2022
+tot_div_pop_22 <- merge(covid_22,pop, by="Province_State", all.x=T)
+tot_div_pop_22 <- transform(tot_div_pop_22, new = as.numeric(total_cases) / as.numeric(Pop))
+
+#2023
+tot_div_pop_23 <- merge(covid_23,pop, by="Province_State", all.x=T)
+tot_div_pop_23 <- transform(tot_div_pop_23, new = as.numeric(total_cases) / as.numeric(Pop))
+```
+
+## Manipulate COVID-19 and US Census Data Set for Confirmed US Deaths
+
+We will now repeat the steps above for the US confirmed deaths data set.
+
+```{r}
+#Remove the columns we don't need
+us_deaths <- us_deaths1 %>%
+  select(-c(UID,iso2,iso3,code3,FIPS,Admin2,Lat, Long_, Combined_Key))
+```
+
+Create a pivot table for the us confirmed cases to align the dates in rows instead of columns.
+
+```{r}
+#Create a pivot to convert the date columns into rows
+us_deaths <- us_deaths %>%
+  pivot_longer(cols = -c(Province_State, Country_Region),
+               names_to = "date",
+               values_to = "deaths") 
+```
+
+Check the output
+
+```{r}
+head(us_deaths, n=10)
+```
+
+Group the confirmed US deaths data set by the State and the Year.
+
+```{r}
+#Group the data by the States and the Dates and sum up the total case reported
+us_states_deaths <- us_deaths %>%
+  mutate(yr = substr(date, nchar(date)-2+1, nchar(date))) %>%
+  group_by(Province_State, yr) %>%
+  summarise(total_deaths=sum(deaths),
+           mean_cases=(mean(deaths)))
+```
+
+Create the data frame of the total confirmed deaths by state from the years 2020-2023.
+
+```{r}
+tot_deaths_states <- us_states_deaths %>%
+  group_by(Province_State) %>%
+  summarise(total_deaths=sum(total_deaths),
+           mean_cases=(mean(total_deaths)))
+tot_deaths_states <- merge(tot_deaths_states,pop, by="Province_State", all.x=T)
+```
+
+Use the census data to get the total deaths by state divided by the states population.
+
+```{r}
+#tot_deaths_div_pop <- merge(tot_deaths_states,pop, by="Province_State", all.x=T)
+tot_deaths_div_pop <- transform(tot_deaths_states, new = as.numeric(total_deaths) / as.numeric(Pop))
+```
+
+Break down the total confirmed US deaths by year.
+
+```{r}
+#Breakdown the data by year
+covid_20_deaths <- us_states_deaths%>%
+  filter(yr =='20')
+covid_21_deaths <- us_states_deaths %>%
+  filter(yr =='21')
+covid_22_deaths <- us_states_deaths %>%
+  filter(yr =='22')
+covid_23_deaths <- us_states_deaths %>%
+  filter(yr =='23')
+```
+
+Use the census again to get the total cases divided by the population.
+
+```{r}
+#Create a new dataframe that is a combination of the covid and census data
+#2020
+tot_deaths_div_pop_20 <- merge(covid_20_deaths,pop, by="Province_State", all.x=T)
+tot_deaths_div_pop_20 <- transform(tot_deaths_div_pop_20, new = as.numeric(total_deaths) / as.numeric(Pop))
+
+#2021
+tot_deaths_div_pop_21 <- merge(covid_21_deaths,pop, by="Province_State", all.x=T)
+tot_deaths_div_pop_21 <- transform(tot_deaths_div_pop_21, new = as.numeric(total_deaths) / as.numeric(Pop))
+
+#2022
+tot_deaths_div_pop_22 <- merge(covid_22_deaths,pop, by="Province_State", all.x=T)
+tot_deaths_div_pop_22 <- transform(tot_deaths_div_pop_22, new = as.numeric(total_deaths) / as.numeric(Pop))
+
+#2023
+tot_deaths_div_pop_23 <- merge(covid_23_deaths,pop, by="Province_State", all.x=T)
+tot_deaths_div_pop_23 <- transform(tot_deaths_div_pop_23, new = as.numeric(total_deaths) / as.numeric(Pop))
+```
+
+## Visualize Data 
+
+Here we will visualize all of the data we analyzed above. This will include the total confirmed cases by state from the year 2020 to the year 2023. It will then break down the confirmed covid cases by state and year, and finally it will show the year by year breakdown of confirmed cases in proprotion to each states population.
+
+## Heatmap of Total Confirmed Covid-19 Cases and Deaths 2020-2023 
+
+We will now plot a heat map of total confirmed cases in the US from 2020-2023
+
+```{r}
+tot_cases_states$region <- tolower(tot_cases_states$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_cases_states, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=total_cases))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Break down total cases based on population.
+
+```{r}
+tot_div_pop$region <- tolower(tot_div_pop$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_div_pop, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=total_cases))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+As expected the states with the highest populations still had the most amount of cases in proportion to their population. Considering the virus spread by coming in contact with others, it makes sense the states with the most people would have the most cases.
+
+Breakdown total deaths from 2020-2023
+
+```{r}
+tot_deaths_states$region <- tolower(tot_deaths_states$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_deaths_states, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=total_deaths))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Heat map of total deaths based on population
+
+```{r}
+tot_deaths_div_pop$region <- tolower(tot_deaths_div_pop$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_deaths_div_pop, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=total_deaths))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Similar to the analysis above, it makes sense that the states with the most cases would also have the most deaths.
+
+## Heatmap of Total Confirmed Covid-19 Cases and Deaths in 2020 based on population
+
+```{r}
+#Plot the graph for 2020
+tot_div_pop_20$region <- tolower(tot_div_pop_20$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_div_pop_20, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=new))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Deaths
+
+```{r}
+#Plot the graph for 2020
+tot_deaths_div_pop_20$region <- tolower(tot_deaths_div_pop_20$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_deaths_div_pop_20, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=new))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+An interesting finding here is that North Carlolina had so many cases in proportion to their population. Even more fascinating, is that they seem to have less deaths than New York given the total number of cases.
+
+## Heatmap of Total Confirmed Covid-19 Cases and Deaths in 2021 based on population
+
+```{r}
+#Plot the graph for 2021
+tot_div_pop_21$region <- tolower(tot_div_pop_21$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_div_pop_21, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=new))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Deaths
+
+```{r}
+#Plot the graph for 2020
+tot_deaths_div_pop_21$region <- tolower(tot_deaths_div_pop_21$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_deaths_div_pop_21, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=new))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Heat map looks very similar to 2020, but we can see some states starting to have more cases and deaths.
+
+## Heatmap of Total Confirmed Covid-19 Cases and Deaths in 2022 based on population
+
+```{r}
+#Plot the graph for 2021
+tot_div_pop_22$region <- tolower(tot_div_pop_22$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_div_pop_22, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=new))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Deaths
+
+```{r}
+#Plot the graph for 2022
+tot_deaths_div_pop_22$region <- tolower(tot_deaths_div_pop_22$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_deaths_div_pop_22, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=new))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Very similar analysis as 2021.
+
+## Heatmap of Total Confirmed Covid-19 Cases and Deaths in 2023 based on population
+
+```{r}
+#Plot the graph for 2023
+tot_div_pop_23$region <- tolower(tot_div_pop_23$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_div_pop_23, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=new))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Deaths
+
+```{r}
+#Plot the graph for 2023
+tot_deaths_div_pop_23$region <- tolower(tot_deaths_div_pop_23$Province_State)
+library(ggplot2)
+library(maps)
+states <- map_data("state")
+map.df <- merge(states,tot_deaths_div_pop_23, by="region", all.x=T)
+map.df <- map.df[order(map.df$order),]
+ggplot(map.df, aes(x=long,y=lat,group=group))+
+  geom_polygon(aes(fill=new))+
+  geom_path()+ 
+  scale_fill_gradientn(colours=rev(heat.colors(10)),na.value="grey90")+
+  coord_map()
+```
+
+Although it looks very similar to the previous heat maps, it's important to look at the scale. The scale shows that the total cases and deaths have dropped.
+
+## Modeling
+
+Create a linear model to get the correlation between the total cases divided by population an the total deaths divided by population.
+
+##  
+
+```{r}
+case_deaths_pop <- merge(tot_deaths_div_pop,tot_div_pop, by="Province_State", all.x=T)
+```
+
+```{r}
+head(case_deaths_pop, n = 5)
+```
+
+```{r}
+case_deaths_pop <- case_deaths_pop %>%
+  select(c(new.x, new.y))
+
+```
+
+```{r}
+model <- lm(new.y ~ new.x, data = case_deaths_pop)
+```
+
+```{r}
+summary(model)
+```
+
+By analyzing this data, we can see there is a strong correlation between deaths and covid cases when factoring in the population size of the states.
+
+## Bias & Conclusion
+
+I had gone into this research expecting to see states with less restrictions during the pandemic to have more cases than states with more restrictions. However, even when factoring in the population size of the states I noticed that even states that had the most restriction (California and New York) still had a lot of Covid cases. Additionally, the one state that surprised me was North Carolina. Although it was hard to tell without the population being factored in, North Carolina had a lot of Covid cases in proportion to their population size.
